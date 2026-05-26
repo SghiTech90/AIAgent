@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI AGENT - Voice-Activated AI Database Agent</title>
+    <meta name="description"
+        content="An advanced voice-activated AI Agent that converts speech to SQL queries, executes them on your SQLite database, and returns beautiful natural language answers.">
+    <!-- Google Fonts: Outfit for headers, Inter for UI text -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main Style Sheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <!-- Toast Notification System -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-container">
+        <!-- SIDEBAR: Schema Explorer & Database Management -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-logo">
+                    <div class="logo-orb">
+                        <i class="fa-solid fa-brain-circuit brain-icon"></i>
+                    </div>
+                    <span class="brand-name">AI AGENT</span>
+                </div>
+                <div class="brand-tagline">Voice AI Database Agent</div>
+            </div>
+
+            <!-- Database Selector / Upload Section -->
+            <div class="sidebar-section">
+                <h3 class="section-title"><i class="fa-solid fa-database"></i> Active Database</h3>
+                <div class="db-card">
+                    <div class="db-status">
+                        <span class="status-indicator online"></span>
+                        <span id="active-db-name" class="db-name">data.db (Sample)</span>
+                    </div>
+                    <div class="db-meta" id="db-tables-count">3 Tables loaded</div>
+
+                    <div class="db-actions">
+                        <button id="btn-upload-trigger" class="btn btn-secondary btn-sm"
+                            title="Upload custom SQLite database">
+                            <i class="fa-solid fa-upload"></i> Upload DB
+                        </button>
+                        <button id="btn-reset-db" class="btn btn-danger-outline btn-sm"
+                            title="Reset to default Employees & Projects database">
+                            <i class="fa-solid fa-rotate-left"></i> Reset
+                        </button>
+                    </div>
+                    <!-- Hidden File Input for Database Upload -->
+                    <input type="file" id="db-file-input" accept=".db,.sqlite,.sqlite3" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Interactive Schema Accordion -->
+            <div class="sidebar-section schema-section">
+                <div class="section-header-flex">
+                    <h3 class="section-title"><i class="fa-solid fa-sitemap"></i> Schema Browser</h3>
+                    <button id="btn-refresh-schema" class="btn-icon-only" title="Refresh database schema"><i
+                            class="fa-solid fa-arrows-rotate"></i></button>
+                </div>
+                <div class="schema-search-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="schema-search" placeholder="Search tables or columns...">
+                </div>
+                <div id="schema-accordion" class="schema-accordion">
+                    <!-- Dynamic schema content will be loaded here -->
+                    <div class="loading-spinner-container">
+                        <div class="spinner"></div>
+                        <span class="loading-text">Reading database schema...</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTAINER -->
+        <main class="main-content">
+            <!-- HEADER: Settings & Configuration -->
+            <header class="main-header">
+                <h1>Swapsoft Voice Agent</h1>
+
+                <div class="header-controls">
+                    <!-- LLM Configuration Panel -->
+                    <div class="settings-dropdown-container">
+                        <button id="btn-settings-toggle" class="btn btn-glass">
+                            <i class="fa-solid fa-sliders"></i> AI Config
+                        </button>
+                        <div id="settings-dropdown" class="settings-dropdown card">
+                            <h4 class="dropdown-title"><i class="fa-solid fa-gears"></i> Model Settings</h4>
+
+                            <div class="form-group">
+                                <label for="llm-provider">AI Provider</label>
+                                <select id="llm-provider" class="form-control">
+                                    <option value="google" selected>Google Gemini</option>
+                                    <option value="openai">OpenAI GPT</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="llm-model">Model Name</label>
+                                <select id="llm-model" class="form-control">
+                                    <!-- Options populated dynamically based on provider -->
+                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast/Smart)</option>
+                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
+                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Ultra Smart)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="api-key" id="api-key-label">Gemini API Key</label>
+                                <div class="password-input-container">
+                                    <input type="password" id="api-key" class="form-control"
+                                        placeholder="Enter your API key here...">
+                                    <button type="button" id="btn-toggle-key-visibility" class="btn-toggle-visibility">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </div>
+                                <span class="help-text">Your key is stored locally in the session. It is never saved
+                                    permanently.</span>
+                            </div>
+
+                            <button id="btn-save-settings" class="btn btn-primary btn-block">
+                                <i class="fa-solid fa-check"></i> Apply Configuration
+                            </button>
+                        </div>
+                    </div>
+
+                    <a href="https://AI AGENT-docs.local" target="_blank" class="btn btn-icon-only"
+                        title="View documentation"><i class="fa-solid fa-question-circle"></i></a>
+                </div>
+            </header>
+
+            <!-- INTERACTION ZONE: Core Voice & Text Interface -->
+            <section class="interaction-zone">
+                <div class="interaction-tabs">
+                    <button class="tab-btn active" data-tab="tab-voice"><i class="fa-solid fa-microphone"></i> Voice
+                        Agent</button>
+                    <button class="tab-btn" data-tab="tab-text"><i class="fa-solid fa-keyboard"></i> Type
+                        Question</button>
+                    <button class="tab-btn" data-tab="tab-sandbox" id="tab-btn-sandbox"><i
+                            class="fa-solid fa-terminal"></i> SQL Sandbox</button>
+                    <button class="tab-btn" data-tab="tab-browser" id="tab-btn-browser"><i
+                            class="fa-solid fa-table-list"></i> Table Browser</button>
+                </div>
+
+                <div class="tab-content active" id="tab-voice">
+                    <div class="voice-card card glass">
+                        <!-- Pulsing glowing background visualizer -->
+                        <div class="voice-canvas-container">
+                            <canvas id="waveform-canvas"></canvas>
+                        </div>
+
+                        <div class="voice-controls-wrapper">
+                            <div class="voice-status-container">
+                                <div id="voice-pulse-ring" class="pulse-ring"></div>
+                                <button id="btn-record" class="btn-record-main" title="Click to talk to the agent">
+                                    <i class="fa-solid fa-microphone mic-icon"></i>
+                                </button>
+                                <span id="voice-status-text" class="voice-status-text">Click the microphone & start
+                                    speaking</span>
+                            </div>
+
+                            <div class="voice-transcript-container">
+                                <div class="transcript-header">
+                                    <span>Real-time Transcription</span>
+                                    <button id="btn-clear-transcript" class="btn-icon-only btn-sm"
+                                        title="Clear transcription"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                                <textarea id="voice-transcript" class="transcript-textarea"
+                                    placeholder="Your spoken words will appear here in real-time... Feel free to edit them before asking the agent."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="action-bar">
+                            <button id="btn-ask-voice" class="btn btn-primary btn-lg btn-glow">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Execute
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-text">
+                    <div class="text-card card glass">
+                        <div class="text-input-header">
+                            <h3>Type your natural language database question</h3>
+                            <span class="sample-queries-toggle" id="btn-toggle-samples"><i
+                                    class="fa-solid fa-circle-info"></i> View Sample Questions</span>
+                        </div>
+
+                        <!-- Sample queries list, togglable -->
+                        <div class="sample-queries-box card" id="sample-queries-box" style="display: none;">
+                            <h4>Try these corporate schema questions:</h4>
+                            <ul class="sample-queries-list">
+                                <li><a href="#" class="sample-query-item">On which project is Raj Malhotra working?</a>
+                                </li>
+                                <li><a href="#" class="sample-query-item">Who all are working on Project Alpha with
+                                        Raj?</a></li>
+                                <li><a href="#" class="sample-query-item">Who is Raj's manager and what is their
+                                        email?</a></li>
+                                <li><a href="#" class="sample-query-item">Show me the total budget of all active
+                                        projects.</a></li>
+                                <li><a href="#" class="sample-query-item">List the top 3 highest paid employees and
+                                        their current projects.</a></li>
+                                <li><a href="#" class="sample-query-item">What is the average hours per week spent on
+                                        Project Beta?</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="text-input-wrapper">
+                            <textarea id="text-question" class="text-question-textarea"
+                                placeholder="e.g., Who all are working on Project Alpha with Raj and what are their roles?"></textarea>
+                        </div>
+
+                        <div class="action-bar">
+                            <button id="btn-ask-text" class="btn btn-primary btn-lg btn-glow">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Execute
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SQL Sandbox Tab -->
+                <div class="tab-content" id="tab-sandbox">
+                    <div class="sandbox-card card glass">
+                        <div class="sandbox-header">
+                            <h3><i class="fa-solid fa-code"></i> SQL Editor Sandbox</h3>
+                            <div class="sandbox-actions">
+                                <button id="btn-run-manual-sql" class="btn btn-success">
+                                    <i class="fa-solid fa-play"></i> Run Query
+                                </button>
+                                <button id="btn-clear-sandbox" class="btn btn-secondary-outline">
+                                    <i class="fa-solid fa-eraser"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+                        <div class="sandbox-editor-wrapper">
+                            <textarea id="sandbox-sql-editor" class="sandbox-editor"
+                                placeholder="-- Write SQLite queries here&#10;SELECT * FROM employees WHERE department = 'Engineering';"></textarea>
+                        </div>
+                        <div id="sandbox-error" class="error-panel" style="display: none;"></div>
+
+                        <div class="sandbox-results-panel">
+                            <h4>Query Output</h4>
+                            <div id="sandbox-table-container" class="table-scroll-container">
+                                <div class="table-placeholder">
+                                    <i class="fa-solid fa-terminal placeholder-icon"></i>
+                                    <span>Run an SQL query to see results here</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table Browser Tab -->
+                <div class="tab-content" id="tab-browser">
+                    <div class="browser-card card glass">
+                        <div class="browser-header">
+                            <div class="browser-table-selector">
+                                <label for="browser-table-select">Select Table:</label>
+                                <select id="browser-table-select" class="form-control">
+                                    <!-- Dynamically filled -->
+                                    <option value="" disabled selected>Select a table...</option>
+                                </select>
+                            </div>
+                            <span id="browser-rows-count" class="badge">0 rows found</span>
+                        </div>
+
+                        <div class="browser-table-wrapper" id="browser-table-container">
+                            <div class="table-placeholder">
+                                <i class="fa-solid fa-tableplaceholder placeholder-icon"><i
+                                        class="fa-solid fa-table"></i></i>
+                                <span>Select a table from the dropdown or click 'View Data' in the Schema
+                                    Accordion</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CONSOLE LOG & THINKING PANEL -->
+            <section id="thinking-panel" class="thinking-panel card glass" style="display: none;">
+                <div class="panel-header-flex">
+                    <h3><i class="fa-solid fa-gears pulse-icon"></i> Agent Thought Process</h3>
+                    <div class="agent-status-indicator">
+                        <span class="spinner-sm"></span>
+                        <span id="agent-current-status">Analyzing...</span>
+                    </div>
+                </div>
+                <div id="agent-thinking-logs" class="thinking-logs">
+                    <!-- Dynamic console log lines will print here -->
+                </div>
+            </section>
+
+            <!-- RESULTS SECTION -->
+            <section id="results-panel" class="results-panel" style="display: none;">
+                <!-- 1. The Natural Language Answer Card -->
+                <div class="answer-card card glass animate-slide-up">
+                    <div class="answer-header">
+                        <div class="answer-badge"><i class="fa-solid fa-circle-check"></i> Agent Answer</div>
+                        <button id="btn-speak-answer" class="btn btn-glass-sm" title="Speak the answer"><i
+                                class="fa-solid fa-volume-high"></i> Speak</button>
+                    </div>
+                    <div id="agent-nl-answer" class="nl-answer-text">
+                        <!-- Dynamic Answer Text -->
+                    </div>
+                </div>
+
+                <!-- 2. Split Card: SQL Code block + Visual Data Table -->
+                <div class="results-split-container animate-slide-up">
+                    <!-- Left: SQL Query generated -->
+                    <div class="sql-query-card card glass">
+                        <div class="card-header-flex">
+                            <h3><i class="fa-solid fa-database"></i> Generated SQL Query</h3>
+                            <div class="card-actions">
+                                <button id="btn-copy-sql" class="btn btn-glass-sm" title="Copy SQL to Clipboard"><i
+                                        class="fa-solid fa-copy"></i> Copy</button>
+                                <button id="btn-sandbox-sql" class="btn btn-glass-sm" title="Open in SQL Sandbox"><i
+                                        class="fa-solid fa-code"></i> Edit</button>
+                            </div>
+                        </div>
+                        <div class="code-wrapper">
+                            <pre><code id="generated-sql-code" class="language-sql">SELECT * FROM employees;</code></pre>
+                        </div>
+                    </div>
+
+                    <!-- Right: Returned SQLite records -->
+                    <div class="records-card card glass">
+                        <div class="card-header-flex">
+                            <h3><i class="fa-solid fa-list-check"></i> Database Records</h3>
+                            <span id="results-records-count" class="badge">0 rows</span>
+                        </div>
+                        <div id="results-table-container" class="table-scroll-container">
+                            <!-- Dynamic records table -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Custom JS Scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+
+</html>
