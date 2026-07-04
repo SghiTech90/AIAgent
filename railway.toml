@@ -1,6 +1,6 @@
 [build]
-builder = "NIXPACKS"
-
+builder = "DOCKER"
+dockerfilePath = "Dockerfile"
 [deploy]
 startCommand = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
 healthcheckPath = "/api/db_info"
