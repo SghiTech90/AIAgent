@@ -24,9 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Railway provides the PORT environment variable
-ENV PORT=8080
-EXPOSE $PORT
+EXPOSE 8080
 
-# Start the application using the same command from railway.toml
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120"]
