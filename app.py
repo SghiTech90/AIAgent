@@ -66,11 +66,21 @@ if database.uses_mssql():
     try:
         database.test_connection()
         print(f"Connected to SQL Server database: {database.get_db_label()}")
+        print("====================================================================")
+        print(" [SUCCESS] AI SQL Agent successfully deployed on Railway! ")
+        print("====================================================================")
     except Exception as e:
         print(f"WARNING: SQL Server connection failed: {e}")
 elif not os.path.exists(database.DEFAULT_DB_PATH):
     print("Database data.db not found. Initializing sample SQLite data...")
     database.init_db()
+    print("====================================================================")
+    print(" [SUCCESS] AI SQL Agent successfully deployed on Railway (SQLite)! ")
+    print("====================================================================")
+else:
+    print("====================================================================")
+    print(" [SUCCESS] AI SQL Agent successfully deployed on Railway! ")
+    print("====================================================================")
 
 @app.route('/')
 def index():
