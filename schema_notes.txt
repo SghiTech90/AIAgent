@@ -1,0 +1,11 @@
+# PWD Division Akola — optional hints for the AI agent
+# Edit this file to explain business meaning of tables/columns.
+# Lines starting with # are ignored when loaded (strip comments in code - actually we load raw - let me fix)
+
+# Example hints (customize for your team):
+# - Division: division / office master data
+# - BudgetMaster*: budget allocation by scheme (Road, Building, MLA, GAT, etc.)
+# - *Provision tables: provision / allotment amounts
+# - BillStatus, tbl_Bill_Status, StatusBillPayment: bill workflow and payment status
+# - NividaDetails: tender / contractor (nivida) details
+# - User, Login, UserCredintiall: application users (do not expose passwords in queries)

@@ -45,7 +45,18 @@ Ensure you have Python 3.9+ installed, then install the required Python librarie
 pip3 install -r requirements.txt
 ```
 
-### 2. Start the Server
+### 2. SQL Server (optional)
+
+Copy `.env.example` to `.env`, set `DB_ENGINE=mssql` and your server credentials, then test:
+
+```bash
+python3 test_mssql.py
+python3 inspect_mssql_schema.py   # writes schema_export.txt for review
+```
+
+Edit `schema_notes.txt` with business meanings (budget tables, bill status, etc.) to help the AI.
+
+### 3. Start the Server
 Run the Flask application:
 
 ```bash
@@ -54,7 +65,7 @@ python3 app.py
 
 This will spin up a local development web server at **`http://localhost:5001`**.
 
-### 3. Open in Browser
+### 4. Open in Browser
 Open your browser and navigate to:
 👉 **[http://localhost:5001](http://localhost:5001)**
 

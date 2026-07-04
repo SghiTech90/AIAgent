@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI AGENT - Voice-Activated AI Database Agent</title>
     <meta name="description"
-        content="An advanced voice-activated AI Agent that converts speech to SQL queries, executes them on your SQLite database, and returns beautiful natural language answers.">
+        content="Voice-activated AI Agent that converts speech to SQL queries on SQLite or SQL Server and returns natural language answers.">
     <!-- Google Fonts: Outfit for headers, Inter for UI text -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,7 +42,7 @@
                 <div class="db-card">
                     <div class="db-status">
                         <span class="status-indicator online"></span>
-                        <span id="active-db-name" class="db-name">data.db (Sample)</span>
+                        <span id="active-db-name" class="db-name">Loading...</span>
                     </div>
                     <div class="db-meta" id="db-tables-count">3 Tables loaded</div>
 
@@ -98,28 +98,28 @@
                             <h4 class="dropdown-title"><i class="fa-solid fa-gears"></i> Model Settings</h4>
 
                             <div class="form-group">
-                                <label for="llm-provider">AI Provider</label>
-                                <select id="llm-provider" class="form-control">
-                                    <option value="google" selected>Google Gemini</option>
-                                    <option value="openai">OpenAI GPT</option>
+                                <label for="input-language">Voice &amp; answer language</label>
+                                <select id="input-language" class="form-control">
+                                    <option value="en">English</option>
+                                    <option value="mr">मराठी (Marathi)</option>
                                 </select>
+                                <span class="help-text">Voice mic uses this language. Answers follow the same choice.</span>
                             </div>
 
                             <div class="form-group">
-                                <label for="llm-model">Model Name</label>
+                                <label for="llm-model">OpenAI Model</label>
                                 <select id="llm-model" class="form-control">
-                                    <!-- Options populated dynamically based on provider -->
-                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast/Smart)</option>
-                                    <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
-                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro (Ultra Smart)</option>
+                                    <option value="gpt-4o-mini" selected>GPT-4o Mini (Extremely Fast)</option>
+                                    <option value="gpt-4o">GPT-4o (High Intelligence)</option>
+                                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Legacy)</option>
                                 </select>
                             </div>
 
                             <div class="form-group">
-                                <label for="api-key" id="api-key-label">Gemini API Key</label>
+                                <label for="api-key" id="api-key-label">OpenAI API Key</label>
                                 <div class="password-input-container">
                                     <input type="password" id="api-key" class="form-control"
-                                        placeholder="Enter your API key here...">
+                                        placeholder="sk-proj-...">
                                     <button type="button" id="btn-toggle-key-visibility" class="btn-toggle-visibility">
                                         <i class="fa-solid fa-eye"></i>
                                     </button>
@@ -169,6 +169,14 @@
                                     speaking</span>
                             </div>
 
+                            <div class="form-group voice-language-row">
+                                <label for="input-language-voice"><i class="fa-solid fa-language"></i> Speak in</label>
+                                <select id="input-language-voice" class="form-control form-control-sm">
+                                    <option value="en">English</option>
+                                    <option value="mr">मराठी (Marathi)</option>
+                                </select>
+                            </div>
+
                             <div class="voice-transcript-container">
                                 <div class="transcript-header">
                                     <span>Real-time Transcription</span>
@@ -198,20 +206,16 @@
 
                         <!-- Sample queries list, togglable -->
                         <div class="sample-queries-box card" id="sample-queries-box" style="display: none;">
-                            <h4>Try these corporate schema questions:</h4>
-                            <ul class="sample-queries-list">
-                                <li><a href="#" class="sample-query-item">On which project is Raj Malhotra working?</a>
-                                </li>
-                                <li><a href="#" class="sample-query-item">Who all are working on Project Alpha with
-                                        Raj?</a></li>
-                                <li><a href="#" class="sample-query-item">Who is Raj's manager and what is their
-                                        email?</a></li>
-                                <li><a href="#" class="sample-query-item">Show me the total budget of all active
-                                        projects.</a></li>
-                                <li><a href="#" class="sample-query-item">List the top 3 highest paid employees and
-                                        their current projects.</a></li>
-                                <li><a href="#" class="sample-query-item">What is the average hours per week spent on
-                                        Project Beta?</a></li>
+                            <h4 id="sample-queries-heading">Try these sample questions:</h4>
+                            <ul class="sample-queries-list" id="sample-queries-en">
+                                <li><a href="#" class="sample-query-item">How many records are in BillStatus?</a></li>
+                                <li><a href="#" class="sample-query-item">Show top 10 rows from Division table.</a></li>
+                                <li><a href="#" class="sample-query-item">List all tables related to Budget Master Road.</a></li>
+                            </ul>
+                            <ul class="sample-queries-list" id="sample-queries-mr" style="display: none;">
+                                <li><a href="#" class="sample-query-item">BillStatus मध्ये एकूण किती नोंदी आहेत?</a></li>
+                                <li><a href="#" class="sample-query-item">Division टेबलमधील पहिल्या १० नोंदी दाखवा.</a></li>
+                                <li><a href="#" class="sample-query-item">BudgetMasterRoad मधील बजेटची एकूण रक्कम किती आहे?</a></li>
                             </ul>
                         </div>
 
@@ -244,7 +248,7 @@
                         </div>
                         <div class="sandbox-editor-wrapper">
                             <textarea id="sandbox-sql-editor" class="sandbox-editor"
-                                placeholder="-- Write SQLite queries here&#10;SELECT * FROM employees WHERE department = 'Engineering';"></textarea>
+                                placeholder="-- Write SQL here (T-SQL when using SQL Server)&#10;SELECT TOP 10 * FROM [dbo].[Division];"></textarea>
                         </div>
                         <div id="sandbox-error" class="error-panel" style="display: none;"></div>
 

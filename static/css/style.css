@@ -975,6 +975,27 @@ select.form-control option {
     text-shadow: 0 0 10px rgba(255, 56, 96, 0.2);
 }
 
+.voice-language-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0 4px;
+    max-width: 320px;
+}
+
+.voice-language-row label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    margin: 0;
+}
+
+.voice-language-row .form-control {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
 /* Real-time transcript box */
 .voice-transcript-container {
     flex-grow: 1;

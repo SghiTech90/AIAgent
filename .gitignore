@@ -1,0 +1,7 @@
+.env
+data.db
+schema_export.txt
+uploads/
+__pycache__/
+*.pyc
+.DS_Store

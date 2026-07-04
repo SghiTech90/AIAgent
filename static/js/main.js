@@ -8,8 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         activeTab: 'tab-voice',
         apiConfig: {
-            provider: 'google',
-            modelName: 'gemini-1.5-flash',
+            modelName: 'gpt-4o-mini',
             apiKey: ''
         },
         voice: {
@@ -23,7 +22,29 @@ document.addEventListener('DOMContentLoaded', () => {
             source: null,
             animationFrameId: null
         },
-        activeTable: null
+        activeTable: null,
+        inputLanguage: 'en'
+    };
+
+    const LANGUAGE_CONFIG = {
+        en: {
+            speechLang: 'en-US',
+            ttsLang: 'en-US',
+            whisperLang: 'en',
+            voicePlaceholder: 'Your spoken words will appear here in real-time... Feel free to edit them before asking the agent.',
+            textPlaceholder: 'Type your question in English...',
+            voiceStatusIdle: 'Click the microphone & start speaking',
+            listening: 'Listening... Speak now (English)',
+        },
+        mr: {
+            speechLang: 'mr-IN',
+            ttsLang: 'mr-IN',
+            whisperLang: 'mr',
+            voicePlaceholder: 'तुमचे बोललेले शब्द येथे दिसतील... एजंटला विचारण्यापूर्वी संपादित करू शकता.',
+            textPlaceholder: 'तुमचा प्रश्न मराठीत लिहा...',
+            voiceStatusIdle: 'मायक्रोफोन दाबा आणि मराठीत बोला',
+            listening: 'ऐकत आहे... आता मराठीत बोला',
+        },
     };
 
     // --- DOM Elements Cache ---
@@ -35,12 +56,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // Configuration
         btnSettingsToggle: document.getElementById('btn-settings-toggle'),
         settingsDropdown: document.getElementById('settings-dropdown'),
-        llmProvider: document.getElementById('llm-provider'),
         llmModel: document.getElementById('llm-model'),
         apiKey: document.getElementById('api-key'),
         apiKeyLabel: document.getElementById('api-key-label'),
         btnToggleKeyVisibility: document.getElementById('btn-toggle-key-visibility'),
         btnSaveSettings: document.getElementById('btn-save-settings'),
+        inputLanguage: document.getElementById('input-language'),
+        inputLanguageVoice: document.getElementById('input-language-voice'),
+        sampleQueriesEn: document.getElementById('sample-queries-en'),
+        sampleQueriesMr: document.getElementById('sample-queries-mr'),
+        sampleQueriesHeading: document.getElementById('sample-queries-heading'),
 
         // Database / Schema
         activeDbName: document.getElementById('active-db-name'),
@@ -122,80 +147,102 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialize Configuration & LocalStorage ---
     function loadSavedConfig() {
-        const savedProvider = localStorage.getItem('llm_provider');
         const savedModel = localStorage.getItem('llm_model');
         const savedKey = localStorage.getItem('llm_api_key');
-
-        if (savedProvider) {
-            state.apiConfig.provider = savedProvider;
-            els.llmProvider.value = savedProvider;
-        }
-        
-        // Update model list on load based on provider
-        updateModelDropdownOptions(state.apiConfig.provider);
 
         if (savedModel) {
             state.apiConfig.modelName = savedModel;
             els.llmModel.value = savedModel;
         }
-        
+
         if (savedKey) {
             state.apiConfig.apiKey = savedKey;
             els.apiKey.value = savedKey;
         }
 
-        // Adjust input label on load
-        updateApiKeyLabel(state.apiConfig.provider);
+        const savedLang = localStorage.getItem('input_language');
+        if (savedLang && LANGUAGE_CONFIG[savedLang]) {
+            setInputLanguage(savedLang, false);
+        } else {
+            applyInputLanguageUI();
+        }
+    }
+
+    function getLanguageConfig() {
+        return LANGUAGE_CONFIG[state.inputLanguage] || LANGUAGE_CONFIG.en;
+    }
+
+    function applyInputLanguageUI() {
+        const cfg = getLanguageConfig();
+        if (els.voiceTranscript) {
+            els.voiceTranscript.placeholder = cfg.voicePlaceholder;
+        }
+        if (els.textQuestion) {
+            els.textQuestion.placeholder = cfg.textPlaceholder;
+        }
+        if (els.voiceStatusText && !state.voice.isRecording) {
+            els.voiceStatusText.textContent = cfg.voiceStatusIdle;
+        }
+        if (els.inputLanguage) {
+            els.inputLanguage.value = state.inputLanguage;
+        }
+        if (els.inputLanguageVoice) {
+            els.inputLanguageVoice.value = state.inputLanguage;
+        }
+        if (els.sampleQueriesEn && els.sampleQueriesMr) {
+            const isMr = state.inputLanguage === 'mr';
+            els.sampleQueriesEn.style.display = isMr ? 'none' : 'block';
+            els.sampleQueriesMr.style.display = isMr ? 'block' : 'none';
+            if (els.sampleQueriesHeading) {
+                els.sampleQueriesHeading.textContent = isMr
+                    ? 'हे नमुना प्रश्न वापरून पहा:'
+                    : 'Try these sample questions:';
+            }
+        }
+        document.documentElement.lang = state.inputLanguage === 'mr' ? 'mr' : 'en';
+    }
+
+    function setInputLanguage(lang, showToastMsg = true) {
+        if (!LANGUAGE_CONFIG[lang]) {
+            lang = 'en';
+        }
+        if (state.voice.isRecording) {
+            stopRecording();
+        }
+        state.inputLanguage = lang;
+        localStorage.setItem('input_language', lang);
+        state.voice.recognition = null;
+        applyInputLanguageUI();
+        if (showToastMsg) {
+            showToast(
+                lang === 'mr' ? 'मराठी भाषा सक्षम केली.' : 'English language enabled.',
+                'success'
+            );
+        }
     }
 
     function saveConfig() {
-        const provider = els.llmProvider.value;
         const modelName = els.llmModel.value;
         const apiKey = els.apiKey.value.strip ? els.apiKey.value.strip() : els.apiKey.value.trim();
 
         if (!apiKey) {
-            showToast("Please provide a valid API key.", "error");
+            showToast("Please provide a valid OpenAI API key.", "error");
             return false;
         }
 
-        state.apiConfig.provider = provider;
         state.apiConfig.modelName = modelName;
         state.apiConfig.apiKey = apiKey;
 
-        localStorage.setItem('llm_provider', provider);
         localStorage.setItem('llm_model', modelName);
         localStorage.setItem('llm_api_key', apiKey);
+
+        if (els.inputLanguage) {
+            setInputLanguage(els.inputLanguage.value, false);
+        }
 
         els.settingsDropdown.style.display = 'none';
         showToast("Configuration saved successfully!", "success");
         return true;
-    }
-
-    function updateApiKeyLabel(provider) {
-        if (provider === 'google') {
-            els.apiKeyLabel.textContent = "Gemini API Key";
-            els.apiKey.placeholder = "AIzaSy...";
-        } else {
-            els.apiKeyLabel.textContent = "OpenAI API Key";
-            els.apiKey.placeholder = "sk-proj-...";
-        }
-    }
-
-    function updateModelDropdownOptions(provider) {
-        els.llmModel.innerHTML = '';
-        if (provider === 'google') {
-            els.llmModel.innerHTML = `
-                <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash (Fast/Smart)</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro (Ultra Smart)</option>
-            `;
-        } else {
-            els.llmModel.innerHTML = `
-                <option value="gpt-4o-mini" selected>GPT-4o Mini (Extremely Fast)</option>
-                <option value="gpt-4o">GPT-4o (High Intelligence)</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Legacy)</option>
-            `;
-        }
     }
 
     // Toggle Settings Dropdown
@@ -212,12 +259,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     els.settingsDropdown.addEventListener('click', (e) => e.stopPropagation());
-
-    els.llmProvider.addEventListener('change', (e) => {
-        const val = e.target.value;
-        updateApiKeyLabel(val);
-        updateModelDropdownOptions(val);
-    });
 
     els.btnToggleKeyVisibility.addEventListener('click', () => {
         const type = els.apiKey.getAttribute('type');
@@ -251,6 +292,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Dynamic Schema Explorer & Loading ---
+    async function loadDbInfo() {
+        try {
+            const res = await fetch('/api/db_info');
+            const data = await res.json();
+            if (!data.success) {
+                els.activeDbName.textContent = 'Database connection error';
+                showToast(`Database: ${data.error}`, 'error');
+                return;
+            }
+            const engineLabel = data.engine === 'mssql' ? 'SQL Server' : 'SQLite';
+            els.activeDbName.textContent = `${data.label} (${engineLabel})`;
+            if (data.engine === 'mssql') {
+                els.btnUploadTrigger.style.display = 'none';
+                els.btnResetDb.style.display = 'none';
+                els.dbFileInput.style.display = 'none';
+            }
+        } catch (err) {
+            console.warn('db_info failed', err);
+        }
+    }
+
     async function loadSchema() {
         try {
             const res = await fetch('/api/schema');
@@ -434,7 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
 
         try {
-            const res = await fetch(`/api/table/${tableName}?limit=100`);
+            const res = await fetch(`/api/table/${encodeURIComponent(tableName)}?limit=100`);
             const data = await res.json();
 
             if (!data.success) {
@@ -587,6 +649,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    if (els.inputLanguage) {
+        els.inputLanguage.addEventListener('change', () => {
+            setInputLanguage(els.inputLanguage.value);
+        });
+    }
+    if (els.inputLanguageVoice) {
+        els.inputLanguageVoice.addEventListener('change', () => {
+            setInputLanguage(els.inputLanguageVoice.value);
+        });
+    }
+
     // --- Web Speech API (Client-side Voice Recognition) ---
     function initSpeechRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -598,12 +671,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        recognition.lang = getLanguageConfig().speechLang;
 
         recognition.onstart = () => {
             state.voice.isRecording = true;
             els.btnRecord.classList.add('recording');
-            els.voiceStatusText.textContent = "Listening... Speak now";
+            els.voiceStatusText.textContent = getLanguageConfig().listening;
             els.voiceStatusText.classList.add('recording-text');
             showToast("Microphone active. Start speaking!", "info");
             
@@ -612,25 +685,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         recognition.onresult = (event) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
-
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
+            let transcript = '';
+            for (let i = 0; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
             }
-
-            // Append final transcribing to text area
-            if (finalTranscript !== '') {
-                // If text area currently holds placeholder or is blank, overwrite
-                if (els.voiceTranscript.value === '') {
-                    els.voiceTranscript.value = finalTranscript;
-                } else {
-                    els.voiceTranscript.value = els.voiceTranscript.value.trim() + ' ' + finalTranscript;
-                }
+            if (transcript && state.voice.isRecording) {
+                els.voiceTranscript.value = transcript;
             }
         };
 
@@ -674,7 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function stopRecording() {
         state.voice.isRecording = false;
         els.btnRecord.classList.remove('recording');
-        els.voiceStatusText.textContent = "Click microphone & start speaking";
+        els.voiceStatusText.textContent = getLanguageConfig().voiceStatusIdle;
         els.voiceStatusText.classList.remove('recording-text');
         
         if (state.voice.recognition) {
@@ -735,16 +795,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast("Configure an OpenAI API key in 'AI Config' first to use backend Whisper transcription.", "error");
                     return;
                 }
-                
-                if (state.apiConfig.provider !== 'openai') {
-                    showToast("Backend audio transcription requires using 'OpenAI GPT' provider.", "warning");
-                    return;
-                }
 
                 // Send to backend Whisper API
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recorded_voice.webm');
                 formData.append('api_key', state.apiConfig.apiKey);
+                formData.append('language', state.inputLanguage);
 
                 showToast("Transcribing voice recording via Whisper...", "info");
                 
@@ -912,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.sampleQueriesBox.style.display = display === 'block' ? 'none' : 'block';
     });
 
-    els.sampleQueryItems.forEach(item => {
+    document.querySelectorAll('.sample-query-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             els.textQuestion.value = item.textContent;
@@ -948,9 +1004,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const payload = {
             question: question.trim(),
-            provider: state.apiConfig.provider,
             model_name: state.apiConfig.modelName,
-            api_key: state.apiConfig.apiKey
+            api_key: state.apiConfig.apiKey,
+            language: state.inputLanguage,
         };
 
         // Create virtual loading console lines
@@ -1155,6 +1211,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!text || text.trim() === '') return;
 
         const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = getLanguageConfig().ttsLang;
+        const voices = synth.getVoices();
+        const preferred = voices.find(v => v.lang === getLanguageConfig().ttsLang)
+            || voices.find(v => v.lang && v.lang.startsWith(state.inputLanguage));
+        if (preferred) {
+            utterance.voice = preferred;
+        }
         utterance.onend = () => {
             els.btnSpeakAnswer.innerHTML = '<i class="fa-solid fa-volume-high"></i> Speak';
         };
@@ -1171,8 +1234,13 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast("Reading answer aloud...", "info");
     });
 
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = () => {};
+    }
+
     // --- App Booting Initialization ---
     loadSavedConfig();
+    loadDbInfo();
     loadSchema();
     showToast("AI AGENT neural dashboard online.", "success");
 });
