@@ -69,7 +69,7 @@ def _mssql_connection_string():
 def get_mssql_connection():
     import pyodbc
 
-    timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "15"))
+    timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "3"))
     return pyodbc.connect(_mssql_connection_string(), timeout=timeout)
 
 

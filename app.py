@@ -61,15 +61,7 @@ ALLOWED_AUDIO_EXTENSIONS = {'wav', 'webm', 'mp3', 'm4a', 'ogg'}
 def allowed_file(filename, allowed_extensions):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-# Online database connection check
-try:
-    database.test_connection()
-    print(f"Connected to Online SQL Server database: {database.get_db_label()}")
-    print("====================================================================")
-    print(" [SUCCESS] AI SQL Agent successfully deployed on Railway! ")
-    print("====================================================================")
-except Exception as e:
-    print(f"WARNING: Database connection failed: {e}")
+# Online database connection check deferred to runtime to prevent gunicorn worker hang
 
 @app.route('/')
 def index():
