@@ -61,26 +61,15 @@ ALLOWED_AUDIO_EXTENSIONS = {'wav', 'webm', 'mp3', 'm4a', 'ogg'}
 def allowed_file(filename, allowed_extensions):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 
-# SQLite sample DB only when not using SQL Server
-if database.uses_mssql():
-    try:
-        database.test_connection()
-        print(f"Connected to SQL Server database: {database.get_db_label()}")
-        print("====================================================================")
-        print(" [SUCCESS] AI SQL Agent successfully deployed on Railway! ")
-        print("====================================================================")
-    except Exception as e:
-        print(f"WARNING: SQL Server connection failed: {e}")
-elif not os.path.exists(database.DEFAULT_DB_PATH):
-    print("Database data.db not found. Initializing sample SQLite data...")
-    database.init_db()
-    print("====================================================================")
-    print(" [SUCCESS] AI SQL Agent successfully deployed on Railway (SQLite)! ")
-    print("====================================================================")
-else:
+# Online database connection check
+try:
+    database.test_connection()
+    print(f"Connected to Online SQL Server database: {database.get_db_label()}")
     print("====================================================================")
     print(" [SUCCESS] AI SQL Agent successfully deployed on Railway! ")
     print("====================================================================")
+except Exception as e:
+    print(f"WARNING: Database connection failed: {e}")
 
 @app.route('/')
 def index():
@@ -206,76 +195,6 @@ def process_manual_sql_endpoint():
         "columns": columns,
         "rows": rows
     })
-
-@app.route('/api/reset_db', methods=['POST'])
-def reset_db_endpoint():
-    """Reset the database to the standard rich Employees & Projects sample data."""
-    if database.uses_mssql():
-        return jsonify({
-            "success": False,
-            "error": "Reset is not available when connected to SQL Server. Change DB_ENGINE in .env to use SQLite sample data.",
-        })
-    try:
-        database.init_db()
-        return jsonify({"success": True, "message": "Database reset to sample data successfully!"})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
-
-@app.route('/api/upload_db', methods=['POST'])
-def upload_db_endpoint():
-    """Upload a custom SQLite database file to replace the active one."""
-    if database.uses_mssql():
-        return jsonify({
-            "success": False,
-            "error": "SQLite upload is disabled while DB_ENGINE=mssql. Update .env to switch back to SQLite.",
-        })
-    if 'file' not in request.files:
-        return jsonify({"success": False, "error": "No file part in the request."})
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"success": False, "error": "No file selected for uploading."})
-    
-    if file and allowed_file(file.filename, ALLOWED_DB_EXTENSIONS):
-        try:
-            # Save the uploaded database file as the active default database (data.db)
-            # Make sure we close existing connections before overwriting
-            target_path = database.DEFAULT_DB_PATH
-            
-            # Temporary file first to verify it's a valid SQLite file
-            temp_path = os.path.join(UPLOAD_FOLDER, "temp_uploaded.db")
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            file.save(temp_path)
-            
-            # Test connection to make sure it's a valid sqlite database
-            import sqlite3
-            conn = None
-            try:
-                conn = sqlite3.connect(temp_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                tables = cursor.fetchall()
-                conn.close()
-            except sqlite3.Error as se:
-                if conn: conn.close()
-                os.remove(temp_path)
-                return jsonify({"success": False, "error": f"Invalid SQLite database file: {str(se)}"})
-
-            # Overwrite active database file
-            if os.path.exists(target_path):
-                os.remove(target_path)
-            os.rename(temp_path, target_path)
-
-            return jsonify({
-                "success": True, 
-                "message": "Custom SQLite database uploaded successfully! New schema loaded.",
-                "tables_found": len(tables)
-            })
-        except Exception as e:
-            return jsonify({"success": False, "error": f"Failed to upload database: {str(e)}"})
-    else:
-        return jsonify({"success": False, "error": "Allowed file types: .db, .sqlite, .sqlite3"})
 
 @app.route('/api/transcribe', methods=['POST'])
 def transcribe_audio_endpoint():

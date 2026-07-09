@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
-DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower().strip()
+DB_ENGINE = os.getenv("DB_ENGINE", "mssql").lower().strip()
 SCHEMA_SAMPLE_LIMIT = int(os.getenv("SCHEMA_SAMPLE_LIMIT", "30"))
 SCHEMA_NOTES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema_notes.txt")
 
@@ -101,123 +101,6 @@ def _quote_mssql_identifier(name):
 def _quote_mssql_table(table_name, default_schema="dbo"):
     schema_name, bare_name = _parse_table_reference(table_name, default_schema)
     return f"{_quote_mssql_identifier(schema_name)}.{_quote_mssql_identifier(bare_name)}"
-
-
-def init_db(db_path=DEFAULT_DB_PATH):
-    """Initialize the SQLite sample database (ignored when DB_ENGINE=mssql)."""
-    if uses_mssql():
-        raise RuntimeError("init_db() is only available for the local SQLite sample database.")
-
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-        except OSError as e:
-            print(f"Error removing existing database: {e}")
-
-    conn = get_db_connection(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    CREATE TABLE employees (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        role TEXT NOT NULL,
-        department TEXT NOT NULL,
-        salary REAL NOT NULL,
-        hire_date TEXT NOT NULL,
-        manager_id INTEGER,
-        email TEXT UNIQUE NOT NULL,
-        FOREIGN KEY (manager_id) REFERENCES employees (id) ON DELETE SET NULL
-    );
-    """)
-
-    cursor.execute("""
-    CREATE TABLE projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        budget REAL NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT,
-        status TEXT NOT NULL CHECK (status IN ('Planning', 'Active', 'On Hold', 'Completed'))
-    );
-    """)
-
-    cursor.execute("""
-    CREATE TABLE employee_projects (
-        employee_id INTEGER,
-        project_id INTEGER,
-        hours_per_week INTEGER DEFAULT 40,
-        role_in_project TEXT NOT NULL,
-        PRIMARY KEY (employee_id, project_id),
-        FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE,
-        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-    );
-    """)
-
-    cursor.execute("""
-    INSERT INTO employees (id, name, role, department, salary, hire_date, manager_id, email) VALUES
-    (1, 'Priya Sharma', 'Engineering Director', 'Engineering', 145000.00, '2021-03-15', NULL, 'priya.sharma@company.com');
-    """)
-
-    employees = [
-        (2, 'Raj Malhotra', 'Senior Lead Developer', 'Engineering', 115000.00, '2022-06-01', 1, 'raj.malhotra@company.com'),
-        (3, 'Amit Patel', 'Senior UX/UI Designer', 'Design', 95000.00, '2023-01-10', 1, 'amit.patel@company.com'),
-        (4, 'Rohan Mehta', 'Frontend Engineer', 'Engineering', 85000.00, '2023-08-15', 2, 'rohan.mehta@company.com'),
-        (5, 'Sunita Rao', 'Backend Engineer', 'Engineering', 90000.00, '2022-11-20', 2, 'sunita.rao@company.com'),
-        (6, 'Neha Gupta', 'Data Scientist', 'Analytics', 105000.00, '2023-02-28', 1, 'neha.gupta@company.com'),
-        (7, 'Vikram Singh', 'QA Engineer', 'Engineering', 75000.00, '2024-01-05', 2, 'vikram.singh@company.com'),
-        (8, 'Sarah Johnson', 'Product Manager', 'Product', 120000.00, '2022-04-10', None, 'sarah.j@company.com'),
-    ]
-    cursor.executemany(
-        """
-        INSERT INTO employees (id, name, role, department, salary, hire_date, manager_id, email)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        """,
-        employees,
-    )
-
-    projects = [
-        (101, 'Project Alpha', 'Next-generation AI core engine and query processor.', 250000.00, '2025-01-10', '2026-06-30', 'Active'),
-        (102, 'Project Beta', 'Modern cloud migration and API infrastructure overhaul.', 180000.00, '2025-03-01', '2025-12-15', 'Active'),
-        (103, 'Project Gamma', 'Redesign of customer portal and analytics dashboard.', 95000.00, '2025-05-01', '2025-10-31', 'Planning'),
-        (104, 'Project Delta', 'Automated security vulnerability scanner tool.', 150000.00, '2024-06-01', '2025-04-30', 'Completed'),
-    ]
-    cursor.executemany(
-        """
-        INSERT INTO projects (id, name, description, budget, start_date, end_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
-        """,
-        projects,
-    )
-
-    assignments = [
-        (2, 101, 20, 'Technical Architect'),
-        (4, 101, 30, 'Frontend Lead'),
-        (5, 101, 30, 'Backend Developer'),
-        (6, 101, 15, 'Data Engineer'),
-        (8, 101, 15, 'Product Lead'),
-        (2, 102, 20, 'Lead Consultant'),
-        (5, 102, 10, 'Cloud Infrastructure'),
-        (7, 102, 40, 'QA Automation Lead'),
-        (8, 102, 20, 'Product Owner'),
-        (3, 103, 35, 'Lead UX/UI Designer'),
-        (4, 103, 10, 'UI Prototyper'),
-        (8, 103, 5, 'Advisory PM'),
-        (2, 104, 0, 'Security Advisor'),
-        (5, 104, 0, 'Security Implementation'),
-    ]
-    cursor.executemany(
-        """
-        INSERT INTO employee_projects (employee_id, project_id, hours_per_week, role_in_project)
-        VALUES (?, ?, ?, ?);
-        """,
-        assignments,
-    )
-
-    conn.commit()
-    conn.close()
-    print(f"Database initialized successfully at {db_path}!")
 
 
 def _is_write_query(query):
