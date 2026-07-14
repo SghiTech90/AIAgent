@@ -221,7 +221,7 @@ def run_agent(question, model_name, api_key, db_path=database.DEFAULT_DB_PATH, l
     if not api_key:
         return {
             "success": False,
-            "error": "Missing API Key. Set OPENAI_API_KEY in server .env or provide a key in settings.",
+            "error": "Missing API Key. Set OPENAI_API_KEY in the server .env file.",
             "logs": ["Failed: OpenAI API key is required."],
         }
 

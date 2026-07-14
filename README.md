@@ -10,7 +10,7 @@ AI AGENT is a state-of-the-art, voice-activated full-stack AI database agent. It
 *   **🔊 Text to Speech (TTS)**: Features an analyst voice assistant that speaks the database answers back to you aloud!
 *   **🤖 AI Self-Correction Agent Loop**:
     *   Constructs a detailed database schema context (tables, columns, data types, foreign keys, and sample rows).
-    *   Generates SQLite queries using **Google Gemini** (Gemini 2.0 Flash / 1.5 Pro) or **OpenAI GPT** (GPT-4o / GPT-4o Mini) using secure, client-side API keys.
+    *   Generates SQL queries using **OpenAI GPT** (GPT-4o / GPT-4o Mini) with the API key loaded from the server `.env` file (`OPENAI_API_KEY`).
     *   Executes the query and inspects the result.
     *   If a SQLite runtime error occurs, the agent catches the compiler error and recursively feeds it back to the LLM to write a corrected query (up to 3 retries) before delivering results.
 *   **🗄️ Relational Database & Uploads**:
@@ -73,11 +73,10 @@ Open your browser and navigate to:
 
 ## ⚙️ Configuration & Quick Start
 
-1.  **Enter your API Key**:
-    *   Click the **`AI Config`** button in the top right.
-    *   Select your preferred AI Provider (**Google Gemini** is highly recommended and selected by default).
-    *   Paste your API key (Gemini `AIzaSy...` or OpenAI `sk-proj-...`).
-    *   Click **`Apply Configuration`** (it is saved securely in your browser's local storage and never leaves your computer).
+1.  **Set your OpenAI API Key**:
+    *   Copy `.env.example` to `.env` (if you have not already).
+    *   Set `OPENAI_API_KEY=sk-proj-...` in that file. The key is read only on the server — there is no API key field in the UI.
+    *   Optionally pick a model under **AI Config** (model choice only; the key stays in `.env`).
 2.  **Voice Query**:
     *   Click the central glowing microphone button.
     *   Grant microphone permission to the browser.

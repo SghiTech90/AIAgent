@@ -8,8 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         activeTab: 'tab-voice',
         apiConfig: {
-            modelName: 'gpt-4o-mini',
-            apiKey: ''
+            modelName: 'gpt-4o-mini'
         },
         voice: {
             isRecording: false,
@@ -57,9 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btnSettingsToggle: document.getElementById('btn-settings-toggle'),
         settingsDropdown: document.getElementById('settings-dropdown'),
         llmModel: document.getElementById('llm-model'),
-        apiKey: document.getElementById('api-key'),
-        apiKeyLabel: document.getElementById('api-key-label'),
-        btnToggleKeyVisibility: document.getElementById('btn-toggle-key-visibility'),
         btnSaveSettings: document.getElementById('btn-save-settings'),
         inputLanguage: document.getElementById('input-language'),
         inputLanguageVoice: document.getElementById('input-language-voice'),
@@ -148,17 +144,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initialize Configuration & LocalStorage ---
     function loadSavedConfig() {
         const savedModel = localStorage.getItem('llm_model');
-        const savedKey = localStorage.getItem('llm_api_key');
 
         if (savedModel) {
             state.apiConfig.modelName = savedModel;
             els.llmModel.value = savedModel;
         }
 
-        if (savedKey) {
-            state.apiConfig.apiKey = savedKey;
-            els.apiKey.value = savedKey;
-        }
+        // Clear any previously stored client-side API key (now server .env only)
+        localStorage.removeItem('llm_api_key');
 
         const savedLang = localStorage.getItem('input_language');
         if (savedLang && LANGUAGE_CONFIG[savedLang]) {
@@ -223,18 +216,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveConfig() {
         const modelName = els.llmModel.value;
-        const apiKey = els.apiKey.value.strip ? els.apiKey.value.strip() : els.apiKey.value.trim();
-
-        if (!apiKey) {
-            showToast("Please provide a valid OpenAI API key.", "error");
-            return false;
-        }
 
         state.apiConfig.modelName = modelName;
-        state.apiConfig.apiKey = apiKey;
-
         localStorage.setItem('llm_model', modelName);
-        localStorage.setItem('llm_api_key', apiKey);
 
         if (els.inputLanguage) {
             setInputLanguage(els.inputLanguage.value, false);
@@ -259,13 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     els.settingsDropdown.addEventListener('click', (e) => e.stopPropagation());
-
-    els.btnToggleKeyVisibility.addEventListener('click', () => {
-        const type = els.apiKey.getAttribute('type');
-        els.apiKey.setAttribute('type', type === 'password' ? 'text' : 'password');
-        const icon = els.btnToggleKeyVisibility.querySelector('i');
-        icon.className = type === 'password' ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-    });
 
     els.btnSaveSettings.addEventListener('click', saveConfig);
 
@@ -790,16 +767,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Stop all tracks on the stream
                 stream.getTracks().forEach(track => track.stop());
 
-                // If no key configured, we can't do backend transcribing
-                if (!state.apiConfig.apiKey) {
-                    showToast("Configure an OpenAI API key in 'AI Config' first to use backend Whisper transcription.", "error");
-                    return;
-                }
-
-                // Send to backend Whisper API
+                // Send to backend Whisper API (API key comes from server .env)
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recorded_voice.webm');
-                formData.append('api_key', state.apiConfig.apiKey);
                 formData.append('language', state.inputLanguage);
 
                 showToast("Transcribing voice recording via Whisper...", "info");
@@ -984,15 +954,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Validate Key exists
-        if (!state.apiConfig.apiKey) {
-            showToast("AI API Key is required. Please click 'AI Config' in the top header to enter your API key first.", "error");
-            // Highlight config button
-            els.btnSettingsToggle.classList.add('btn-primary');
-            setTimeout(() => els.btnSettingsToggle.classList.remove('btn-primary'), 1500);
-            return;
-        }
-
         // Show thinking panel & hide results panel
         els.thinkingPanel.style.display = 'block';
         els.resultsPanel.style.display = 'none';
@@ -1005,7 +966,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const payload = {
             question: question.trim(),
             model_name: state.apiConfig.modelName,
-            api_key: state.apiConfig.apiKey,
             language: state.inputLanguage,
         };
 

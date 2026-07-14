@@ -17,9 +17,9 @@ _cors_origins = os.getenv("CORS_ORIGINS", "*")
 CORS(app, origins=_cors_origins.split(",") if _cors_origins != "*" else "*")
 
 
-def _resolve_api_key(client_key):
-    """Prefer client key (web UI), fall back to server-side OPENAI_API_KEY."""
-    return client_key or os.getenv("OPENAI_API_KEY")
+def _resolve_api_key():
+    """Load OpenAI API key from server .env only (OPENAI_API_KEY)."""
+    return os.getenv("OPENAI_API_KEY")
 
 
 def _resolve_model_name(model_name):
@@ -131,7 +131,7 @@ def process_query_endpoint():
     office = data.get('office')
     category = data.get('category')
     model_name = _resolve_model_name(data.get('model_name'))
-    api_key = _resolve_api_key(data.get('api_key'))
+    api_key = _resolve_api_key()
     language = (data.get('language') or 'en').lower()
     if language not in ('en', 'mr'):
         language = 'en'
@@ -142,7 +142,7 @@ def process_query_endpoint():
     if not api_key:
         return jsonify({
             "success": False,
-            "error": "API Key is required. Set OPENAI_API_KEY in server .env.",
+            "error": "API Key is required. Set OPENAI_API_KEY in the server .env file.",
         })
 
     scoped_question = _build_scoped_question(question, office=office, category=category)
@@ -195,7 +195,7 @@ def transcribe_audio_endpoint():
         return jsonify({"success": False, "error": "No audio file part in request."})
     
     audio_file = request.files['audio']
-    api_key = request.form.get('api_key') or os.getenv('OPENAI_API_KEY')
+    api_key = _resolve_api_key()
     language = (request.form.get('language') or 'en').lower()
     whisper_lang = 'mr' if language == 'mr' else 'en'
 
@@ -203,7 +203,10 @@ def transcribe_audio_endpoint():
         return jsonify({"success": False, "error": "No audio file selected."})
 
     if not api_key:
-        return jsonify({"success": False, "error": "OpenAI API Key is required for audio transcription."})
+        return jsonify({
+            "success": False,
+            "error": "OpenAI API Key is required for audio transcription. Set OPENAI_API_KEY in the server .env file.",
+        })
 
     if audio_file and allowed_file(audio_file.filename, ALLOWED_AUDIO_EXTENSIONS):
         try:

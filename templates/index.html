@@ -113,19 +113,7 @@
                                     <option value="gpt-4o">GPT-4o (High Intelligence)</option>
                                     <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Legacy)</option>
                                 </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="api-key" id="api-key-label">OpenAI API Key</label>
-                                <div class="password-input-container">
-                                    <input type="password" id="api-key" class="form-control"
-                                        placeholder="sk-proj-...">
-                                    <button type="button" id="btn-toggle-key-visibility" class="btn-toggle-visibility">
-                                        <i class="fa-solid fa-eye"></i>
-                                    </button>
-                                </div>
-                                <span class="help-text">Your key is stored locally in the session. It is never saved
-                                    permanently.</span>
+                                <span class="help-text">OpenAI API key is loaded from the server <code>.env</code> file (<code>OPENAI_API_KEY</code>).</span>
                             </div>
 
                             <button id="btn-save-settings" class="btn btn-primary btn-block">
