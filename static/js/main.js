@@ -52,6 +52,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tabBtns: document.querySelectorAll('.tab-btn'),
         tabContents: document.querySelectorAll('.tab-content'),
         
+        // Theme
+        btnThemeToggle: document.getElementById('btn-theme-toggle'),
+
         // Configuration
         btnSettingsToggle: document.getElementById('btn-settings-toggle'),
         settingsDropdown: document.getElementById('settings-dropdown'),
@@ -140,6 +143,38 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => toast.remove(), 300);
         }, 4000);
     }
+
+    // --- Light / Dark Theme ---
+    function getCurrentTheme() {
+        return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    }
+
+    function updateThemeToggleUI(theme) {
+        if (!els.btnThemeToggle) return;
+        const isLight = theme === 'light';
+        const icon = els.btnThemeToggle.querySelector('i');
+        const label = els.btnThemeToggle.querySelector('.theme-toggle-label');
+        if (icon) icon.className = isLight ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+        if (label) label.textContent = isLight ? 'Dark Mode' : 'Light Mode';
+        const title = isLight ? 'Switch to dark mode' : 'Switch to light mode';
+        els.btnThemeToggle.title = title;
+        els.btnThemeToggle.setAttribute('aria-label', title);
+    }
+
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        try {
+            localStorage.setItem('theme', theme);
+        } catch (err) { }
+        updateThemeToggleUI(theme);
+    }
+
+    if (els.btnThemeToggle) {
+        els.btnThemeToggle.addEventListener('click', () => {
+            setTheme(getCurrentTheme() === 'light' ? 'dark' : 'light');
+        });
+    }
+    updateThemeToggleUI(getCurrentTheme());
 
     // --- Initialize Configuration & LocalStorage ---
     function loadSavedConfig() {

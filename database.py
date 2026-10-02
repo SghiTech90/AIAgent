@@ -9,9 +9,80 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
+<<<<<<< HEAD
+<<<<<<< HEAD
 DB_ENGINE = os.getenv("DB_ENGINE", "mssql").lower().strip()
 SCHEMA_SAMPLE_LIMIT = int(os.getenv("SCHEMA_SAMPLE_LIMIT", "30"))
+=======
+DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower().strip()
+=======
+DB_ENGINE = os.getenv("DB_ENGINE", "mssql").lower().strip()
+>>>>>>> f225fa9 (as)
+SCHEMA_SAMPLE_LIMIT = int(os.getenv("SCHEMA_SAMPLE_LIMIT", "45"))
+>>>>>>> 9f4ae78 (system update)
 SCHEMA_NOTES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema_notes.txt")
+_SKIP_SAMPLE_TABLES = {
+    "login",
+    "user",
+    "usercredintiall",
+    "screateadmin",
+    "thekedarphoto",
+    "imagegallary",
+    "imagespath",
+    "uploaddocuments",
+    "tbl_all_img",
+}
+_BINARY_SAMPLE_COLUMNS = {
+    "image",
+    "img1",
+    "img2",
+    "img3",
+    "photo",
+    "filepath",
+    "imageurl",
+    "error_img",
+    "error_imgtype",
+}
+_WORK_SATELLITE_TABLES = {
+    "ImageGallary",
+    "ImagesPath",
+    "NividaDetails",
+    "StatusBillPayment",
+    "UploadDocuments",
+    "SendSms_tbl",
+    "tbl_All_Img",
+    "tbl_Bill_Status",
+}
+_LOOKUP_JOINS = (
+    ("Taluka", "SettingTaluka", "Taluka"),
+    ("Dist", "SettingJilha", "Jilha"),
+    ("Jilha", "SettingJilha", "Jilha"),
+    ("Upvibhag", "SettingUpVibhag", "UpVibhagacheName"),
+    ("LekhaShirsh", "SettingLekhaShirsh", "code"),
+    ("Lekhashirsh", "SettingLekhaShirsh", "code"),
+    ("Type", "SettingType", "Type"),
+)
+
+SCHEME_MASTERS = {
+    "Building": "dbo.BudgetMasterBuilding",
+    "Road": "dbo.BudgetMasterRoad",
+    "Annuity": "dbo.BudgetMasterAunty",
+    "CRF": "dbo.BudgetMasterCRF",
+    "NABARD": "dbo.BudgetMasterNABARD",
+    "GAT_A": "dbo.BudgetMasterGAT_A",
+    "GAT_D": "dbo.BudgetMasterGAT_D",
+    "GAT_FBC": "dbo.BudgetMasterGAT_FBC",
+    "MLA": "dbo.BudgetMasterMLA",
+    "MP": "dbo.BudgetMasterMP",
+    "2515": "dbo.BudgetMaster2515",
+    "Deposit": "dbo.BudgetMasterDepositFund",
+    "DPDC": "dbo.BudgetMasterDPDC",
+    "NonResBuilding": "dbo.BudgetMasterNonResidentialBuilding",
+    "ResBuilding": "dbo.BudgetMasterResidentialBuilding",
+}
+
+PLACEHOLDER_NAMES = ("कृपया नाव निवडा", "0", "")
+_contractor_name_cache = {}
 
 
 def uses_mssql():
@@ -255,11 +326,169 @@ def _get_mssql_schema():
     return schema
 
 
+def _bare_table_name(table_name):
+    return table_name.split(".")[-1]
+
+
+def _normalize_col_name(name):
+    return name.lower().replace("_", "")
+
+
+def _find_column(columns, *aliases):
+    wanted = {_normalize_col_name(alias) for alias in aliases}
+    for col in columns:
+        if _normalize_col_name(col["name"]) in wanted:
+            return col["name"]
+    return None
+
+
+def _add_relationship(schema, from_table, from_column, to_table, to_column, inferred=True):
+    if from_table not in schema or to_table not in schema:
+        return
+    existing = schema[from_table].setdefault("foreign_keys", [])
+    for fk in existing:
+        if (
+            _normalize_col_name(fk["from_column"]) == _normalize_col_name(from_column)
+            and fk["to_table"] == to_table
+            and _normalize_col_name(fk["to_column"]) == _normalize_col_name(to_column)
+        ):
+            return
+    existing.append({
+        "from_column": from_column,
+        "to_table": to_table,
+        "to_column": to_column,
+        "inferred": inferred,
+    })
+
+
+def _attach_inferred_relationships(schema):
+    """Infer PWD scheme joins the way the Node APIs do (no declared FKs)."""
+    by_bare = {_bare_table_name(table): table for table in schema}
+
+    for bare, qualified in by_bare.items():
+        if not bare.startswith("BudgetMaster"):
+            continue
+        suffix = bare[len("BudgetMaster"):]
+        provision = by_bare.get(f"{suffix}Provision")
+        if not provision:
+            continue
+        master_work = _find_column(schema[qualified]["columns"], "WorkId", "WorkID", "Work_Id")
+        provision_work = _find_column(schema[provision]["columns"], "WorkId", "WorkID", "Work_Id")
+        if master_work and provision_work:
+            _add_relationship(schema, qualified, master_work, provision, provision_work)
+            _add_relationship(schema, provision, provision_work, qualified, master_work)
+
+        for from_col, lookup_bare, lookup_col in _LOOKUP_JOINS:
+            lookup_table = by_bare.get(lookup_bare)
+            actual_from = _find_column(schema[qualified]["columns"], from_col)
+            if not lookup_table or not actual_from:
+                continue
+            actual_to = _find_column(schema[lookup_table]["columns"], lookup_col)
+            if actual_to:
+                _add_relationship(schema, qualified, actual_from, lookup_table, actual_to)
+
+
+def _relationship_graph_text(schema):
+    pairs = []
+    seen_pairs = set()
+    lookup_patterns = []
+    seen_lookups = set()
+    by_bare = {_bare_table_name(table): table for table in schema}
+
+    for table, details in schema.items():
+        for fk in details.get("foreign_keys") or []:
+            if not fk.get("inferred"):
+                continue
+            from_bare = _bare_table_name(table)
+            to_bare = _bare_table_name(fk["to_table"])
+            if from_bare.startswith("BudgetMaster") and to_bare.endswith("Provision"):
+                key = (from_bare, to_bare)
+                if key not in seen_pairs:
+                    seen_pairs.add(key)
+                    pairs.append(
+                        f"  - [{table}].[{fk['from_column']}] = [{fk['to_table']}].[{fk['to_column']}]"
+                    )
+            elif to_bare.startswith("Setting"):
+                pattern = (fk["from_column"], to_bare, fk["to_column"])
+                if pattern not in seen_lookups:
+                    seen_lookups.add(pattern)
+                    lookup_patterns.append(
+                        f"  - BudgetMaster*.[{fk['from_column']}] ~ [{fk['to_table']}].[{fk['to_column']}] (text match)"
+                    )
+
+    satellites = [by_bare[bare] for bare in sorted(_WORK_SATELLITE_TABLES) if bare in by_bare]
+    if not pairs:
+        return ""
+
+    lines = [
+        "JOIN MAP (this database has ZERO declared foreign keys):",
+        "DEFAULT: use BudgetMaster{Scheme} alone for work lists (WorkId, KamacheName, ThekedaarName, Sadyasthiti, Dist, Taluka, Upvibhag).",
+        "Do NOT INNER JOIN *Provision for those questions — provision has fewer rows (budget year money only) and the join hides most works.",
+        "Join *Provision ONLY for Tartud / AikunKharch / MarchEndingExpn / UrvaritAmt / Magni. Then LEFT JOIN on WorkId and filter b.Arthsankalpiyyear (default 2025-2026).",
+        "Do NOT require a.Arthsankalpiyyear = b.Arthsankalpiyyear.",
+        "Estimated/AA cost = a.PrashaskiyAmt (master). T.S. cost = a.TrantrikAmt (master). Contractor = a.ThekedaarName (master).",
+        "Work status = a.Sadyasthiti. Filter only with Unicode equality, e.g. a.Sadyasthiti = N'पूर्ण'. Never LIKE LOWER('पूर्ण').",
+    ]
+    lines.append("Scheme pairs:")
+    lines.extend(pairs)
+    if satellites:
+        lines.append(
+            "Work satellite tables join matching BudgetMaster* on WorkId "
+            "(WorkId / WorkID / Work_Id / Work_ID): " + ", ".join(satellites)
+        )
+        lines.append("ImageGallary.Type names the scheme (Road, Building, ...).")
+    if lookup_patterns:
+        lines.append("Geography / account-head lookups (match text, not numeric IDs):")
+        lines.extend(lookup_patterns)
+    return "\n".join(lines)
+
+
+def _sample_priority(table_name):
+    bare = _bare_table_name(table_name)
+    if bare.lower() in _SKIP_SAMPLE_TABLES:
+        return 99
+    if bare.startswith("BudgetMaster") or bare.endswith("Provision"):
+        return 0
+    if bare.startswith("Setting") or bare in _WORK_SATELLITE_TABLES:
+        return 1
+    if bare in ("BillStatus", "Division", "Post", "Month"):
+        return 1
+    return 2
+
+
+def _compact_sample_row(row):
+    compact = {}
+    for key, value in row.items():
+        if key.lower() in _BINARY_SAMPLE_COLUMNS:
+            compact[key] = "<omitted>"
+            continue
+        if isinstance(value, str) and len(value) > 180:
+            compact[key] = value[:180] + "…"
+        else:
+            compact[key] = value
+    return compact
+
+
+def _priority_sample_tables(schema):
+    ranked = sorted(schema.keys(), key=lambda name: (_sample_priority(name), name))
+    chosen = []
+    for table_name in ranked:
+        if _sample_priority(table_name) >= 99:
+            continue
+        chosen.append(table_name)
+        if len(chosen) >= SCHEMA_SAMPLE_LIMIT:
+            break
+    return chosen
+
+
 def get_schema(db_path=DEFAULT_DB_PATH):
     """Return tables, columns, and foreign keys for the active database."""
     if uses_mssql():
-        return _get_mssql_schema()
-    return _get_sqlite_schema(db_path)
+        schema = _get_mssql_schema()
+    else:
+        schema = _get_sqlite_schema(db_path)
+    _attach_inferred_relationships(schema)
+    return schema
 
 
 def get_table_data(table_name, db_path=DEFAULT_DB_PATH, limit=50):
@@ -306,8 +535,14 @@ def get_schema_summary_text(db_path=DEFAULT_DB_PATH):
         summary.append("Use T-SQL syntax: TOP n instead of LIMIT, bracketed names like [dbo].[Table].")
         summary.append("=" * 40)
 
+    graph = _relationship_graph_text(schema)
+    if graph:
+        summary.append(graph)
+        summary.append("=" * 40)
+
     table_names = sorted(schema.keys())
-    for index, table_name in enumerate(table_names):
+    sample_tables = set(_priority_sample_tables(schema))
+    for table_name in table_names:
         details = schema[table_name]
         summary.append(f"Table: {table_name}")
 
@@ -321,13 +556,18 @@ def get_schema_summary_text(db_path=DEFAULT_DB_PATH):
         if details["foreign_keys"]:
             fk_texts = []
             for fk in details["foreign_keys"]:
+                label = "INFERRED JOIN" if fk.get("inferred") else "FOREIGN KEY"
                 fk_texts.append(
-                    f"  - FOREIGN KEY ({fk['from_column']}) REFERENCES {fk['to_table']}({fk['to_column']})"
+                    f"  - {label} ({fk['from_column']}) REFERENCES {fk['to_table']}({fk['to_column']})"
                 )
             summary.append("\n".join(fk_texts))
 
-        include_samples = index < SCHEMA_SAMPLE_LIMIT
-        if include_samples:
+        bare = _bare_table_name(table_name)
+        skip_sample = bare.lower() in _SKIP_SAMPLE_TABLES
+        include_samples = (not skip_sample) and table_name in sample_tables
+        if skip_sample:
+            summary.append("  (Sample rows omitted — credentials, photos, or binary content. Never SELECT Password.)")
+        elif include_samples:
             if uses_mssql():
                 quoted = _quote_mssql_table(table_name)
                 sample_sql = f"SELECT TOP 3 * FROM {quoted};"
@@ -337,18 +577,117 @@ def get_schema_summary_text(db_path=DEFAULT_DB_PATH):
             if rows:
                 summary.append("  Sample Rows:")
                 for row in rows:
-                    summary.append(f"    {row}")
+                    summary.append(f"    {_compact_sample_row(row)}")
+            else:
+                summary.append("  Sample Rows: none (table appears empty — prefer a sibling table that has rows).")
         else:
             summary.append("  (Sample rows omitted for brevity — columns listed above.)")
 
         summary.append("-" * 40)
 
-    if len(table_names) > SCHEMA_SAMPLE_LIMIT:
+    if len(table_names) > len(sample_tables):
         summary.append(
-            f"Note: Sample rows shown for first {SCHEMA_SAMPLE_LIMIT} tables only. "
-            f"All {len(table_names)} tables are listed with columns."
+            f"Note: Sample rows shown for {len(sample_tables)} priority tables "
+            f"(scheme masters, provisions, lookups). All {len(table_names)} tables are listed with columns."
         )
 
+    return "\n".join(summary)
+
+
+def get_planner_catalog():
+    """Tiny scheme map for the intent planner — not the full schema dump."""
+    lines = [
+        "PWD schemes (master tables hold works, contractors, Dist, status):",
+    ]
+    for scheme, table in SCHEME_MASTERS.items():
+        lines.append(f"  - {scheme} → [{table}]")
+    lines.extend([
+        "Useful master columns: WorkId, KamacheName, ThekedaarName, Dist, Taluka, Upvibhag, Sadyasthiti, PrashaskiyAmt, TrantrikAmt.",
+        "Provision tables (*Provision) are ONLY for this-year money: Tartud, AikunKharch, MarchEndingExpn, UrvaritAmt, Magni.",
+        "Place names: Dist may be Akola or अकोला. Dummy names to exclude: कृपया नाव निवडा, 0, blank.",
+        "Contractor synonyms (same column ThekedaarName): English contractor/thekedar, Marathi ठेकेदार/कंत्राटदार; mixed questions OK.",
+        "Marathi glossary: ठेकेदार/कंत्राटदार=ThekedaarName, इमारत=Building, रस्ता=Road, जिल्हा=Dist,",
+        "पूर्ण=completed status, तरतूद=Tartud, खर्च रक्कम=AikunKharch, कामाचे नाव=KamacheName.",
+        "App aliases: SH & DOR=Road, Annuity=Aunty, NonPlan=GAT_A, 2059=NonResBuilding, 2216=ResBuilding.",
+    ])
+    return "\n".join(lines)
+
+
+def get_contractor_names(master_table=None):
+    """Distinct ThekedaarName values from one scheme master or all masters."""
+    if not uses_mssql():
+        return []
+    import time
+
+    cache_key = _bare_table_name(master_table) if master_table else "*"
+    now = time.time()
+    cached = _contractor_name_cache.get(cache_key)
+    if cached and now - cached["at"] < 300:
+        return cached["names"]
+
+    tables = [master_table] if master_table else list(SCHEME_MASTERS.values())
+    parts = []
+    for table in tables:
+        quoted = _quote_mssql_table(table)
+        parts.append(
+            "SELECT DISTINCT ThekedaarName AS name FROM "
+            f"{quoted} WHERE ThekedaarName IS NOT NULL "
+            "AND LTRIM(RTRIM(CAST(ThekedaarName AS nvarchar(500)))) "
+            "NOT IN (N'', N'0', N'कृपया नाव निवडा')"
+        )
+    _, rows, error = execute_query(" UNION ".join(parts))
+    if error:
+        return []
+    names = [row.get("name") for row in (rows or []) if row.get("name")]
+    _contractor_name_cache[cache_key] = {"at": now, "names": names}
+    if len(_contractor_name_cache) > 20:
+        oldest = min(_contractor_name_cache, key=lambda key: _contractor_name_cache[key]["at"])
+        _contractor_name_cache.pop(oldest, None)
+    return names
+
+
+def _resolve_schema_table(schema, table_name):
+    if not table_name:
+        return None
+    if table_name in schema:
+        return table_name
+    bare = _bare_table_name(table_name).strip("[]")
+    for key in schema:
+        if _bare_table_name(key).lower() == bare.lower():
+            return key
+    return None
+
+
+def get_focused_schema_text(table_names, db_path=DEFAULT_DB_PATH):
+    """Schema for only the tables the planner selected — no 65-table dump."""
+    schema = get_schema(db_path)
+    resolved = []
+    for name in table_names or []:
+        match = _resolve_schema_table(schema, name)
+        if match and match not in resolved:
+            resolved.append(match)
+
+    if not resolved:
+        return get_schema_summary_text(db_path)
+
+    summary = [
+        "Use ONLY the tables below. Do not invent joins or extra columns.",
+        get_planner_catalog(),
+        "=" * 40,
+    ]
+    if uses_mssql():
+        summary.append("T-SQL: TOP n, [dbo].[Table], Unicode strings as N'अकोला'.")
+        summary.append("=" * 40)
+
+    for table_name in resolved:
+        details = schema[table_name]
+        summary.append(f"Table: {table_name}")
+        col_texts = []
+        for col in details["columns"]:
+            pk_suffix = " (PRIMARY KEY)" if col.get("pk") else ""
+            col_texts.append(f"  - {col['name']} ({col['type']}){pk_suffix}")
+        summary.append("\n".join(col_texts))
+        summary.append("-" * 40)
     return "\n".join(summary)
 
 
