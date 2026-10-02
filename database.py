@@ -9,17 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data.db")
-<<<<<<< HEAD
-<<<<<<< HEAD
 DB_ENGINE = os.getenv("DB_ENGINE", "mssql").lower().strip()
 SCHEMA_SAMPLE_LIMIT = int(os.getenv("SCHEMA_SAMPLE_LIMIT", "30"))
-=======
-DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").lower().strip()
-=======
-DB_ENGINE = os.getenv("DB_ENGINE", "mssql").lower().strip()
->>>>>>> f225fa9 (as)
-SCHEMA_SAMPLE_LIMIT = int(os.getenv("SCHEMA_SAMPLE_LIMIT", "45"))
->>>>>>> 9f4ae78 (system update)
 SCHEMA_NOTES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema_notes.txt")
 _SKIP_SAMPLE_TABLES = {
     "login",
