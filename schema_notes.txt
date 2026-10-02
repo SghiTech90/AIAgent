@@ -1,11 +1,56 @@
-# PWD Division Akola — optional hints for the AI agent
-# Edit this file to explain business meaning of tables/columns.
-# Lines starting with # are ignored when loaded (strip comments in code - actually we load raw - let me fix)
+Smart Budget PWD — how the mobile app and Node backend use this database.
 
-# Example hints (customize for your team):
-# - Division: division / office master data
-# - BudgetMaster*: budget allocation by scheme (Road, Building, MLA, GAT, etc.)
-# - *Provision tables: provision / allotment amounts
-# - BillStatus, tbl_Bill_Status, StatusBillPayment: bill workflow and payment status
-# - NividaDetails: tender / contractor (nivida) details
-# - User, Login, UserCredintiall: application users (do not expose passwords in queries)
+App names vs tables (Ask AI category / HomeScreen title → master + provision):
+- Building → BudgetMasterBuilding + BuildingProvision
+- CRF → BudgetMasterCRF + CRFProvision
+- Annuity / Aunty / अॅन्युइटी → BudgetMasterAunty + AuntyProvision
+- NABARD / नाबार्ड → BudgetMasterNABARD + NABARDProvision
+- Road / SH & DOR / रस्ता → BudgetMasterRoad + RoadProvision
+- NonPlan / GAT_A / NonPlan(3054) → BudgetMasterGAT_A + GAT_AProvision
+- Gat_D → BudgetMasterGAT_D + GAT_DProvision
+- Gat_B|C|F / GAT_FBC / Gat_BCF → BudgetMasterGAT_FBC + GAT_FBCProvision
+- 2515 / Gram Vikas → BudgetMaster2515 + 2515Provision
+- Deposit / Deposite Funds / ठेव → BudgetMasterDepositFund + DepositFundProvision
+- DPDC → BudgetMasterDPDC + DPDCProvision
+- MLA / एमएलए / Amdar → BudgetMasterMLA + MLAProvision
+- MP / एमपी / Khasdar → BudgetMasterMP + MPProvision
+- 2059 / NonResBuilding → BudgetMasterNonResidentialBuilding + NonResidentialBuildingProvision
+- 2216 / ResBuilding → BudgetMasterResidentialBuilding + ResidentialBuildingProvision
+
+How to pick tables:
+- Work list / contractor / work name / WorkId / location / status → BudgetMaster{X} ONLY. Example: road works with contractor names → FROM [dbo].[BudgetMasterRoad] with WorkId, KamacheName, ThekedaarName. No JOIN. No extra WHERE on Sadyasthiti unless the user named a status.
+- This-year budget money (Tartud, AikunKharch, MarchEndingExpn, UrvaritAmt, Magni) → LEFT JOIN {X}Provision b ON a.WorkID = b.WorkID AND b.Arthsankalpiyyear = '2025-2026' (or the year the user asked). INNER JOIN hides works that have no provision row this year.
+Never require a.Arthsankalpiyyear = b.Arthsankalpiyyear (master year is sanction year; provision year is the selected budget year).
+Estimated/AA cost is PrashaskiyAmt on the master, not ManjurAmt on provision.
+
+Work status is master column Sadyasthiti (nvarchar). Filter with Unicode equality only:
+[Sadyasthiti] = N'पूर्ण'
+Never LIKE LOWER('पूर्ण') and never LOWER() on Marathi — that returns no rows.
+Known values: पूर्ण / Completed; अपूर्ण / Incomplete; प्रगतीत / Inprogress / चालू / Processing / Current; निविदा स्तर / Tender Stage; अंदाजपत्रकीय स्तर / Estimated Stage; सुरु न झालेली / Not Started.
+
+Money mapping used on dashboards:
+- PrashaskiyAmt = Estimated cost / AA cost
+- TrantrikAmt = Technical sanction (T.S.) cost
+- Tartud = Budget provision / allotment
+- AikunKharch = Expenditure
+- AkunAnudan = grant/anudan
+- MarchEndingExpn = spend up to March
+- UrvaritAmt = remaining
+- Magni = demand
+- ThekedaarName / ThekedarMobile = contractor in English, thekedar in Roman, ठेकेदार/कंत्राटदार in Marathi (same column; mixed-language questions are normal)
+- KamacheName = work name (काम नाव)
+- ShakhaAbhyantaName = branch engineer (शाखा अभियंता)
+- UpabhyantaName = deputy/sub engineer (उपअभियंता)
+- Upvibhag = sub-division
+- LekhaShirsh / LekhaShirshName = account head
+- U_WIN = work identification number shown in all-head reports
+
+Login and people: SCreateAdmin (UserId, Password, Post, Office, Name, MobileNo). Roles: Executive Engineer, Deputy Engineer, Sectional Engineer, Contractor, MLA, MP, Supreintending Engiener (circle). Filter contractor works with ThekedaarName. Do not SELECT Password.
+
+Photos: ImageGallary.WorkId + ImageGallary.Type join the matching BudgetMaster* (Type like Road, Building). Also ImagesPath, UploadDocuments, tbl_All_Img.
+
+Bills/tenders: NividaDetails.WorkId; tbl_Bill_Status.Work_Id + HeadType; StatusBillPayment.WorkID.
+
+Office: backend picks a whole SQL database from office code (P_W_Division_Akola, P_W_Division_Washim, P_W_Division_Buldhana, P_W_Division_Khamgaon, P_W_Division_WBAkola, P_W_Circle_Akola). This agent is already connected to one office DB. SubDivision on rows is a text office/subdivision label (often P.W.Division,Akola), not the pool key.
+
+When the question includes a Budget category, use that scheme's BudgetMaster table. Join its Provision table only for budget-year money questions. If a master table is empty, then use the matching Provision table.
